@@ -31,7 +31,7 @@
 #include "staticlib/support.hpp"
 #include "staticlib/utils.hpp"
 
-#include "wilton/support/alloc_copy.hpp"
+#include "wilton/support/alloc.hpp"
 #include "wilton/support/exception.hpp"
 
 char* wilton_thread_run(void* cb_ctx, void (*cb)(void* cb_ctx)) /* noexcept */ {

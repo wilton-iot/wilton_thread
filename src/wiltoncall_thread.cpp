@@ -40,7 +40,7 @@ namespace thread {
 
 namespace { // anonymous
 
-const std::string LOGGER = std::string("wilton.thread");
+const std::string logger = std::string("wilton.thread");
 
 } // namespace
 
@@ -62,7 +62,7 @@ support::buffer run(sl::io::span<const char> data) {
     const sl::json::value& callback = rcallback.get();
     std::string* callback_str_ptr = new std::string();
     *callback_str_ptr = callback.dumps();
-    support::log_debug(LOGGER, "Spawning thread, callback script: [" + *callback_str_ptr + "] ...");
+    support::log_debug(logger, "Spawning thread, callback script: [" + *callback_str_ptr + "] ...");
     // call wilton
     char* err = wilton_thread_run(callback_str_ptr,
             [](void* passed) {
@@ -77,14 +77,14 @@ support::buffer run(sl::io::span<const char> data) {
                         std::addressof(out), std::addressof(out_len));
                 delete sptr;
                 if (nullptr != err) {
-                    support::log_error(LOGGER, TRACEMSG(err));
+                    support::log_error(logger, TRACEMSG(err));
                     wilton_free(err);
                 }
                 if (nullptr != out) {
                     wilton_free(out);
                 }
             });
-    support::log_debug(LOGGER, "Thread spawn complete, result: [" + sl::support::to_string_bool(nullptr == err) + "] ...");
+    support::log_debug(logger, "Thread spawn complete, result: [" + sl::support::to_string_bool(nullptr == err) + "] ...");
     if (nullptr != err) {
         support::throw_wilton_error(err, TRACEMSG(err));
     }

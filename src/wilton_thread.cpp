@@ -22,6 +22,7 @@
  */
 
 #include "wilton/wilton_thread.h"
+#include "wilton/wilton_service.h"
 
 #include <cstdint>
 #include <chrono>
@@ -38,6 +39,7 @@ char* wilton_thread_run(void* cb_ctx, void (*cb)(void* cb_ctx)) /* noexcept */ {
     if (nullptr == cb) return wilton::support::alloc_copy(TRACEMSG("Null 'cb' parameter specified"));
     try {
         auto th = std::thread([cb, cb_ctx]() {
+            wilton_service_increase_threads_count();
             auto cleaner = sl::support::defer([]() STATICLIB_NOEXCEPT {
                 auto tid = sl::support::to_string_any(std::this_thread::get_id());
                 wilton_clean_tls(tid.c_str(), static_cast<int>(tid.length()));
@@ -47,7 +49,10 @@ char* wilton_thread_run(void* cb_ctx, void (*cb)(void* cb_ctx)) /* noexcept */ {
             } catch (...) {
                 // silently prevent termination
             }
+            wilton_service_decrease_threads_count();
+            // hook decrease threads count
         });
+        // hook increase threads count;
         th.detach();
         return nullptr;
     } catch (const std::exception& e) {

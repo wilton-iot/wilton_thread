@@ -60,7 +60,7 @@ char* wilton_thread_run(void* cb_ctx, void (*cb)(void* cb_ctx),
         auto th = std::thread([cb, cb_ctx, caps_ptr]() {
             // register capabilities
             if (nullptr != caps_ptr) {
-                auto err = wilton_set_thread_capabilities(caps_ptr->c_str(), caps_ptr->length());
+                auto err = wilton_set_thread_capabilities(caps_ptr->c_str(), static_cast<int>(caps_ptr->length()));
                 delete caps_ptr;
                 if (nullptr != err) {
                     auto errst = std::string(err);

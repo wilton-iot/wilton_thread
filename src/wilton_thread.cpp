@@ -34,16 +34,48 @@
 
 #include "wilton/support/alloc.hpp"
 #include "wilton/support/exception.hpp"
+#include "wilton/support/logging.hpp"
 
-char* wilton_thread_run(void* cb_ctx, void (*cb)(void* cb_ctx)) /* noexcept */ {
+namespace { // anonymous
+
+const std::string logger = std::string("wilton.thread");
+
+} // namespace
+
+char* wilton_thread_run(void* cb_ctx, void (*cb)(void* cb_ctx),
+        const char* capabilities_json, int capabilities_json_len) /* noexcept */ {
     if (nullptr == cb) return wilton::support::alloc_copy(TRACEMSG("Null 'cb' parameter specified"));
+    if (nullptr != capabilities_json && !sl::support::is_uint16_positive(capabilities_json_len)) {
+            return wilton::support::alloc_copy(TRACEMSG(
+                    "Invalid 'capabilities_json_len' parameter specified: [" + sl::support::to_string(capabilities_json_len) + "]"));
+    }
     try {
-        auto th = std::thread([cb, cb_ctx]() {
+        // capabilities
+        std::string* caps_ptr = nullptr;
+        if (nullptr != capabilities_json) {
+            caps_ptr = new std::string(capabilities_json, static_cast<uint16_t>(capabilities_json_len));
+        }
+
+        // start thread
+        auto th = std::thread([cb, cb_ctx, caps_ptr]() {
+            // register capabilities
+            if (nullptr != caps_ptr) {
+                auto err = wilton_set_thread_capabilities(caps_ptr->c_str(), caps_ptr->length());
+                delete caps_ptr;
+                if (nullptr != err) {
+                    auto errst = std::string(err);
+                    wilton_free(err);
+                    wilton::support::log_error(logger, "Thread spawn error, message: [" + errst + "]");
+                    return;
+                }
+            }
+            // register TLS cleaner
             wilton_service_increase_threads_count();
             auto cleaner = sl::support::defer([]() STATICLIB_NOEXCEPT {
                 auto tid = sl::support::to_string_any(std::this_thread::get_id());
                 wilton_clean_tls(tid.c_str(), static_cast<int>(tid.length()));
             });
+            // run callback
             try {
                 cb(cb_ctx);
             } catch (...) {

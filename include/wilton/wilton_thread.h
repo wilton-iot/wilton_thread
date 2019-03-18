@@ -31,7 +31,9 @@ extern "C" {
 char* wilton_thread_run(
         void* cb_ctx,
         void (*cb)(
-                void* cb_ctx));
+                void* cb_ctx),
+        const char* capabilities_json,
+        int capabilities_json_len);
 
 char* wilton_thread_sleep_millis(
         int millis);

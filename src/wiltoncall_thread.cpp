@@ -48,11 +48,14 @@ support::buffer run(sl::io::span<const char> data) {
     // json parse
     auto json = sl::json::load(data);
     auto rcallback = std::ref(sl::json::null_value_ref());
+    auto caps = std::string();
     for (const sl::json::field& fi : json.as_object()) {
         auto& name = fi.name();
         if ("callbackScript" == name) {
             support::check_json_callback_script(fi);
             rcallback = fi.val();
+        } else if ("capabilities" == name) {
+            caps = fi.val().dumps();
         } else {
             throw support::exception(TRACEMSG("Unknown data field: [" + name + "]"));
         }
@@ -83,7 +86,7 @@ support::buffer run(sl::io::span<const char> data) {
                 if (nullptr != out) {
                     wilton_free(out);
                 }
-            });
+            }, caps.empty() ? nullptr : caps.c_str(), static_cast<int>(caps.length()));
     support::log_debug(logger, "Thread spawn complete, result: [" + sl::support::to_string_bool(nullptr == err) + "] ...");
     if (nullptr != err) {
         support::throw_wilton_error(err, TRACEMSG(err));

@@ -49,11 +49,14 @@ support::buffer run(sl::io::span<const char> data) {
     auto json = sl::json::load(data);
     auto rcallback = std::ref(sl::json::null_value_ref());
     auto caps = std::string();
+    auto schan_offer = std::string();
     for (const sl::json::field& fi : json.as_object()) {
         auto& name = fi.name();
         if ("callbackScript" == name) {
             support::check_json_callback_script(fi);
             rcallback = fi.val();
+        } else if ("shutdownChannelOffer" == name) {
+            schan_offer = fi.val().dumps();
         } else if ("capabilities" == name) {
             caps = fi.val().dumps();
         } else {
@@ -65,6 +68,8 @@ support::buffer run(sl::io::span<const char> data) {
     const sl::json::value& callback = rcallback.get();
     std::string* callback_str_ptr = new std::string();
     *callback_str_ptr = callback.dumps();
+    if (schan_offer.empty()) throw support::exception(TRACEMSG(
+            "Required parameter 'shutdownChannelOffer' not specified"));
     support::log_debug(logger, "Spawning thread, callback script: [" + *callback_str_ptr + "] ...");
     // call wilton
     char* err = wilton_thread_run(callback_str_ptr,
@@ -86,7 +91,9 @@ support::buffer run(sl::io::span<const char> data) {
                 if (nullptr != out) {
                     wilton_free(out);
                 }
-            }, caps.empty() ? nullptr : caps.c_str(), static_cast<int>(caps.length()));
+            },
+                    schan_offer.c_str(), static_cast<int>(schan_offer.length()),
+                    caps.empty() ? nullptr : caps.c_str(), static_cast<int>(caps.length()));
     support::log_debug(logger, "Thread spawn complete, result: [" + sl::support::to_string_bool(nullptr == err) + "] ...");
     if (nullptr != err) {
         support::throw_wilton_error(err, TRACEMSG(err));

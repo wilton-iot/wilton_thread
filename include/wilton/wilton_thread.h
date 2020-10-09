@@ -32,6 +32,8 @@ char* wilton_thread_run(
         void* cb_ctx,
         void (*cb)(
                 void* cb_ctx),
+        const char* schannel_offer_json,
+        int schannel_offer_json_len,
         const char* capabilities_json,
         int capabilities_json_len);
 

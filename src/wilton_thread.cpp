@@ -32,6 +32,8 @@
 #include "staticlib/support.hpp"
 #include "staticlib/utils.hpp"
 
+#include "wilton/wiltoncall.h"
+
 #include "wilton/support/alloc.hpp"
 #include "wilton/support/exception.hpp"
 #include "wilton/support/logging.hpp"
@@ -43,13 +45,24 @@ const std::string logger = std::string("wilton.thread");
 } // namespace
 
 char* wilton_thread_run(void* cb_ctx, void (*cb)(void* cb_ctx),
+        const char* schannel_offer_json, int schannel_offer_json_len,
         const char* capabilities_json, int capabilities_json_len) /* noexcept */ {
     if (nullptr == cb) return wilton::support::alloc_copy(TRACEMSG("Null 'cb' parameter specified"));
+    if (nullptr != schannel_offer_json && !sl::support::is_uint16_positive(schannel_offer_json_len)) {
+            return wilton::support::alloc_copy(TRACEMSG(
+                    "Invalid 'schannel_offer_json_len' parameter specified: [" + sl::support::to_string(schannel_offer_json_len) + "]"));
+    }
     if (nullptr != capabilities_json && !sl::support::is_uint16_positive(capabilities_json_len)) {
             return wilton::support::alloc_copy(TRACEMSG(
                     "Invalid 'capabilities_json_len' parameter specified: [" + sl::support::to_string(capabilities_json_len) + "]"));
     }
     try {
+        // shutdown channel
+        std::string* offer_ptr = nullptr;
+        if (nullptr != schannel_offer_json) {
+            offer_ptr = new std::string(schannel_offer_json, static_cast<uint16_t>(schannel_offer_json_len));
+        }
+
         // capabilities
         std::string* caps_ptr = nullptr;
         if (nullptr != capabilities_json) {
@@ -57,7 +70,7 @@ char* wilton_thread_run(void* cb_ctx, void (*cb)(void* cb_ctx),
         }
 
         // start thread
-        auto th = std::thread([cb, cb_ctx, caps_ptr]() {
+        auto th = std::thread([cb, cb_ctx, offer_ptr, caps_ptr]() {
             // register capabilities
             if (nullptr != caps_ptr) {
                 auto err = wilton_set_thread_capabilities(caps_ptr->c_str(), static_cast<int>(caps_ptr->length()));
@@ -71,9 +84,26 @@ char* wilton_thread_run(void* cb_ctx, void (*cb)(void* cb_ctx),
             }
             // register TLS cleaner
             wilton_service_increase_threads_count();
-            auto cleaner = sl::support::defer([]() STATICLIB_NOEXCEPT {
+            auto cleaner = sl::support::defer([offer_ptr]() STATICLIB_NOEXCEPT {
                 auto tid = sl::support::to_string_any(std::this_thread::get_id());
                 wilton_clean_tls(tid.c_str(), static_cast<int>(tid.length()));
+                // script engine is destroyed at this point and thread is about to exit
+                if (nullptr != offer_ptr) { 
+                    // notifying channel through scripting for safety
+                    auto call_name = std::string("channel_offer");
+                    char* out = nullptr;
+                    int out_len = -1;
+                    auto err = wiltoncall(call_name.c_str(), static_cast<int>(call_name.length()),
+                            offer_ptr->c_str(), static_cast<int>(offer_ptr->length()),
+                            std::addressof(out), std::addressof(out_len));
+                    delete offer_ptr;
+                    if (nullptr != err) { // ignore possible failures
+                        wilton_free(err);
+                    }
+                    if (nullptr != out) { // ignore output
+                        wilton_free(out);
+                    }
+                }
             });
             // run callback
             try {
